@@ -18,35 +18,21 @@ net = dagnn.DagNN.loadobj(net);
 net.mode = 'test' ;
 %-------------------------
 
-for idf = 1: length(annotation_files)
-    
+for idf = 1: length(annotation_files   
     % load detection
     load([annotation_path annotation_files(idf).name]);
-    id_detc=id;   
+    id_detc=id;
+    
     feature=cell(4,num);
     % load image 
-    for k = 1 : num    
-        %extract the CNN features (using VGG model)
+    for k = 1 : num         
         for i=1:4
             frame{i}= single(read(v{i},k));                     
             x{i}=find(id_detc{i}(:,2)==k-1);
             if ~isempty(x{i})
-                % Resize images to be compatible with the network.
-                imageSize = size(frame{i}) ;
-                fullImageSize = net.meta.normalization.imageSize(1) ...
-                    / net.meta.normalization.cropSize ;
-                scale = max(fullImageSize ./ imageSize(1:2)) ;
-                imNorm = imresize(frame{i}, scale, ...
-                              net.meta.normalization.interpolation, ...
-                              'antialiasing', false) ;
-                imNorm = bsxfun(@minus, imNorm, net.meta.normalization.averageImage) ;
-                box=single([id_detc{i}(x{i},([4,5])) id_detc{i}(x{i},([4,5]))+id_detc{i}(x{i},([6,7]))])+1;               
-                box = bsxfun(@times, box - 1, scale) + 1 ;
-                roi=[1 box]';           
-                net.conserveMemory = 0; 
-                net.eval({'data', imNorm, 'rois',roi}) ;
-                % obtain the CNN otuput
-                f = squeeze(gather(net.vars(net.getVarIndex('fc7x')).value)) ;              
+                box=id_detc{i}(x{i},([4,5,6,7]));
+                % extract the CNN features (using VGG model)
+                f=get_features(frame{i},box,net);                    
                 feature{i,k} = f ;              
             end
         end
