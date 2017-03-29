@@ -113,7 +113,13 @@ derOutputs = [] ;
 obj.numPendingVarRefs = zeros(1, numel(obj.vars)) ;
 obj.numPendingParamRefs = zeros(1, numel(obj.params)) ;
 for l = fliplr(obj.executionOrder)
-  time = tic ;
-  obj.layers(l).block.backwardAdvanced(obj.layers(l)) ;
-  obj.layers(l).backwardTime = toc(time) ;
+    time = tic ;
+    obj.layers(l).block.backwardAdvanced(obj.layers(l)) ;
+    obj.layers(l).backwardTime = toc(time) ;
+%     if l == 2
+%        break; 
+%     end
+    if l < 15
+        break;
+    end    
 end

@@ -31,6 +31,8 @@ opts.parameterServer.prefix = 'mcn' ;
 opts.derOutputs = {'objective', 1} ;
 opts.extractStatsFn = @extractStats ;
 opts.plotStatistics = true;
+opts.saveState = true;
+opts.loss_thre = 0.01;
 opts = vl_argparse(opts, varargin) ;
 
 if ~exist(opts.expDir, 'dir'), mkdir(opts.expDir) ; end
@@ -72,7 +74,9 @@ for epoch=start+1:opts.numEpochs
   % is restarted from a checkpoint.
 
   rng(epoch + opts.randomSeed) ;
-  prepareGPUs(opts, epoch == start+1) ;
+  if epoch == start+1, clearMex() ; end
+%   prepareGPUs(opts, epoch == start+1) ;
+  
 
   % Train for one epoch.
   params = opts ;
@@ -86,15 +90,19 @@ for epoch=start+1:opts.numEpochs
   if numel(opts.gpus) <= 1
     [net, state] = processEpoch(net, state, params, 'train') ;
     [net, state] = processEpoch(net, state, params, 'val') ;
-    if ~evaluateMode
+    if ~evaluateMode && opts.saveState
       saveState(modelPath(epoch), net, state) ;
     end
     lastStats = state.stats ;
+    
+%     if lastStats.train.yololoss < opts.loss_thre
+%        break; 
+%     end
   else
     spmd
       [net, state] = processEpoch(net, state, params, 'train') ;
       [net, state] = processEpoch(net, state, params, 'val') ;
-      if labindex == 1 && ~evaluateMode
+      if labindex == 1 && ~evaluateMode && opts.saveState
         saveState(modelPath(epoch), net, state) ;
       end
       lastStats = state.stats ;
@@ -105,8 +113,9 @@ for epoch=start+1:opts.numEpochs
   stats.train(epoch) = lastStats.train ;
   stats.val(epoch) = lastStats.val ;
   clear lastStats ;
-  saveStats(modelPath(epoch), stats) ;
-
+  if  opts.saveState
+      saveStats(modelPath(epoch), stats) ;
+  end
   if opts.plotStatistics
     switchFigure(1) ; clf ;
     plots = setdiff(...
@@ -186,8 +195,10 @@ stats.time = 0 ;
 
 start = tic ;
 for t=1:params.batchSize:numel(subset)
-  fprintf('%s: epoch %02d: %3d/%3d:', mode, epoch, ...
+  if  params.saveState
+      fprintf('%s: epoch %02d: %3d/%3d:', mode, epoch, ...
           fix((t-1)/params.batchSize)+1, ceil(numel(subset)/params.batchSize)) ;
+  end    
   batchSize = min(params.batchSize, numel(subset) - t + 1) ;
 
   for s=1:params.numSubBatches
@@ -240,13 +251,15 @@ for t=1:params.batchSize:numel(subset)
     adjustTime = 4*batchTime - time ;
     stats.time = time + adjustTime ;
   end
-
-  fprintf(' %.1f (%.1f) Hz', averageSpeed, currentSpeed) ;
-  for f = setdiff(fieldnames(stats)', {'num', 'time'})
-    f = char(f) ;
-    fprintf(' %s: %.3f', f, stats.(f)) ;
-  end
-  fprintf('\n') ;
+%   if  params.saveState
+      fprintf(' %.1f (%.1f) Hz', averageSpeed, currentSpeed) ;
+      for f = setdiff(fieldnames(stats)', {'num', 'time'})
+        f = char(f) ;
+        fprintf(' %s: %.3f', f, stats.(f)) ;
+      end
+      fprintf('\n') ;
+%   end   
+  
 end
 
 % Save back to state.
@@ -265,7 +278,6 @@ if ~params.saveMomentum
 else
   state.momentum = cellfun(@gather, state.momentum, 'uniformoutput', false) ;
 end
-
 net.reset() ;
 net.move('cpu') ;
 

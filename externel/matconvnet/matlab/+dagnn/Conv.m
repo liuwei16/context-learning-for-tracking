@@ -8,6 +8,11 @@ classdef Conv < dagnn.Filter
   methods
     function outputs = forward(obj, inputs, params)
       if ~obj.hasBias, params{2} = [] ; end
+      if numel(inputs)>1
+         inputs{1}=cat(3,inputs{1},inputs{2},inputs{3});
+         inputs{2}=[];
+         inputs{3}=[];
+      end
       outputs{1} = vl_nnconv(...
         inputs{1}, params{1}, params{2}, ...
         'pad', obj.pad, ...
@@ -18,12 +23,24 @@ classdef Conv < dagnn.Filter
 
     function [derInputs, derParams] = backward(obj, inputs, params, derOutputs)
       if ~obj.hasBias, params{2} = [] ; end
+      if numel(inputs)>1
+         inputs{1}=cat(3,inputs{1},inputs{2},inputs{3});
+         inputs{2}=[];
+         inputs{3}=[];
+      end
       [derInputs{1}, derParams{1}, derParams{2}] = vl_nnconv(...
         inputs{1}, params{1}, params{2}, derOutputs{1}, ...
         'pad', obj.pad, ...
         'stride', obj.stride, ...
         'dilate', obj.dilate, ...
         obj.opts{:}) ;
+       if numel(inputs)>1
+         temp = derInputs{1};
+         s = size(temp,3)/numel(inputs);
+         for i = 1 : numel(inputs)
+             derInputs{i} = temp(:,:,1+(i-1)*s:i*s,:);
+         end
+      end
     end
 
     function kernelSize = getKernelSize(obj)
